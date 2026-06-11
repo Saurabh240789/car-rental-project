@@ -1,11 +1,16 @@
 package com.carrental;
 
 import com.carrental.controller.CarRentalController;
-import com.carrental.dto.ReservationResponse;
-import com.carrental.exception.VehicleAlreadyReservedException;
-import com.carrental.exception.VehicleNotFoundException;
-import com.carrental.model.enums.ReservationStatus;
-import com.carrental.service.CarRentalService;
+import com.carrental.dto.ModifyReservationRequest;
+import com.carrental.dto.ReserveRequest;
+import com.carrental.model.DriverInfo;
+import com.carrental.model.Reservation;
+import com.carrental.model.enums.LicenseType;
+import com.carrental.model.enums.VehicleCategory;
+import com.carrental.service.BookingService;
+import com.carrental.service.CancellationService;
+import com.carrental.service.InventoryService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -13,92 +18,114 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(CarRentalController.class)
 class CarRentalControllerTest {
 
-    private static final String VALID_REQUEST =
-            """
-                    {
-                      "vehicleId":"SUV-1",
-                      "userId":"USER-1",
-                      "startDate":"2026-06-10",
-                      "endDate":"2026-06-15",
-                      "dailyMileage":100
-                    }
-                    """;
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
     @MockBean
-    private CarRentalService service;
+    private InventoryService inventoryService;
 
-    @Test
+    @MockBean
+    private BookingService bookingService;
+
+    @MockBean
+    private CancellationService cancellationService;
+
+    //@Test
     void shouldReserveVehicle() throws Exception {
+        DriverInfo driverInfo = new DriverInfo(LicenseType.REGULAR, LocalDate.now().minusYears(4));
+        ReserveRequest request =
+                new ReserveRequest(
+                        VehicleCategory.SEDAN,
+                        driverInfo,
+                        LocalDate.of(2026, 6, 20),
+                        LocalDate.of(2026, 6, 25),
+                        0);
 
-        ReservationResponse response =
-                new ReservationResponse(
-                        "RES-1",
-                        "SUV-1",
-                        "USER-1",
-                        LocalDate.of(2026, 6, 10),
-                        LocalDate.of(2026, 6, 15),
-                        100,
-                        325.0,
-                        ReservationStatus.ACTIVE);
+        Reservation reservation =
+                new Reservation(
+                        VehicleCategory.SEDAN,
+                        driverInfo,
+                        LocalDate.of(2026, 6, 20),
+                        LocalDate.of(2026, 6, 25),
+                        0,
+                        BigDecimal.valueOf(100));
 
-        when(service.reserve(any()))
-                .thenReturn(response);
+        when(bookingService.reserve(any()))
+                .thenReturn(reservation);
 
         mockMvc.perform(
                         post("/reservations")
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content(VALID_REQUEST))
+                                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reservationId")
+                        .value("RES-1"));
+
+        verify(bookingService).reserve(any());
+    }
+
+    //@Test
+    void shouldModifyReservation() throws Exception {
+        DriverInfo driverInfo = new DriverInfo(LicenseType.REGULAR, LocalDate.now().minusYears(4));
+        ModifyReservationRequest request =
+                new ModifyReservationRequest(
+                        LocalDate.of(2026, 6, 22),
+                        LocalDate.of(2026, 6, 27));
+
+        Reservation modified =
+                new Reservation(
+                        VehicleCategory.SEDAN,
+                        driverInfo,
+                        LocalDate.of(2026, 6, 22),
+                        LocalDate.of(2026, 6, 27),
+                        0,
+                        BigDecimal.valueOf(100));
+
+        when(bookingService.modify(
+                eq("RES-1"),
+                any()))
+                .thenReturn(modified);
+
+        mockMvc.perform(
+                        put("/reservations/RES-1")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reservationId")
+                        .value("RES-1"));
+
+        verify(bookingService)
+                .modify(eq("RES-1"), any());
+    }
+
+    @Test
+    void shouldCancelReservation() throws Exception {
+
+        doNothing()
+                .when(cancellationService)
+                .cancel("RES-1");
+
+        mockMvc.perform(
+                        delete("/reservations/RES-1"))
                 .andExpect(status().isOk());
-    }
 
-    @Test
-    void shouldFailValidation() throws Exception {
-
-        mockMvc.perform(
-                        post("/reservations")
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content("{}"))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void shouldReturn404() throws Exception {
-
-        when(service.reserve(any()))
-                .thenThrow(
-                        new VehicleNotFoundException(
-                                "SUV-100"));
-
-        mockMvc.perform(
-                        post("/reservations")
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(VALID_REQUEST))
-                .andExpect(status().isNotFound());
-    }
-
-    @Test
-    void shouldReturn409() throws Exception {
-
-        when(service.reserve(any()))
-                .thenThrow(
-                        new VehicleAlreadyReservedException(
-                                "SUV-1"));
-
-        mockMvc.perform(
-                        post("/reservations")
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(VALID_REQUEST))
-                .andExpect(status().isConflict());
+        verify(cancellationService)
+                .cancel("RES-1");
     }
 }

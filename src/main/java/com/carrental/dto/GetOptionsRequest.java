@@ -1,15 +1,20 @@
 package com.carrental.dto;
 
-import com.carrental.model.enums.LicenseType;
+import com.carrental.model.DriverInfo;
+import com.carrental.validation.DateRangeAware;
+import com.carrental.validation.ValidDateRange;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
 
+import java.time.LocalDate;
+
+@ValidDateRange
 public record GetOptionsRequest(
+        @NotNull(message = "Start date is required")
+        LocalDate startDate,
 
-        @Positive(
-                message = "Duration must be greater than zero")
-        int durationDays,
+        @NotNull(message = "End date is required")
+        LocalDate endDate,
 
         @Min(
                 value = 0,
@@ -17,5 +22,5 @@ public record GetOptionsRequest(
         int dailyMileage,
 
         @NotNull
-        LicenseType licenseType) {
+        DriverInfo driverInfo) implements DateRangeAware {
 }

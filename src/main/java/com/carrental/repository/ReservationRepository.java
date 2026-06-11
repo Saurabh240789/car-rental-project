@@ -1,18 +1,24 @@
 package com.carrental.repository;
 
 import com.carrental.model.Reservation;
+import org.springframework.stereotype.Repository;
 
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
-public interface ReservationRepository {
+@Repository
+public class ReservationRepository {
+    private final Map<String, Reservation> reservations = new ConcurrentHashMap<>();
 
-    boolean reserveVehicle(String vehicleId, String userId);
+    public Reservation save(Reservation reservation) {
+        reservations.put(reservation.getReservationId(), reservation);
 
-    void cancelReservation(String reservationId);
+        return reservation;
+    }
 
-    void save(Reservation reservation);
+    public Optional<Reservation> findById(String reservationId) {
 
-    Optional<Reservation> findById(String reservationId);
-
-    void update(Reservation reservation);
+        return Optional.ofNullable(reservations.get(reservationId));
+    }
 }

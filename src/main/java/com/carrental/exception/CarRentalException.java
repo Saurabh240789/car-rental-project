@@ -1,8 +1,8 @@
 package com.carrental.exception;
 
-public abstract class CarRentalException extends RuntimeException {
+public class CarRentalException extends RuntimeException {
 
-    protected CarRentalException(String message) {
+    public CarRentalException(String message) {
         super(message);
     }
 }
