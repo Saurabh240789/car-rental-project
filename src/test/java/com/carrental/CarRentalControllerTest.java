@@ -23,8 +23,12 @@ import java.time.LocalDate;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -46,86 +50,97 @@ class CarRentalControllerTest {
     @MockBean
     private CancellationService cancellationService;
 
-    //@Test
+    @Test
     void shouldReserveVehicle() throws Exception {
-        DriverInfo driverInfo = new DriverInfo(LicenseType.REGULAR, LocalDate.now().minusYears(4));
-        ReserveRequest request =
-                new ReserveRequest(
-                        VehicleCategory.SEDAN,
-                        driverInfo,
-                        LocalDate.of(2026, 6, 20),
-                        LocalDate.of(2026, 6, 25),
-                        0);
+        DriverInfo driverInfo = new DriverInfo(
+                LicenseType.REGULAR,
+                LocalDate.now().minusYears(4)
+        );
 
-        Reservation reservation =
-                new Reservation(
-                        VehicleCategory.SEDAN,
-                        driverInfo,
-                        LocalDate.of(2026, 6, 20),
-                        LocalDate.of(2026, 6, 25),
-                        0,
-                        BigDecimal.valueOf(100));
+        ReserveRequest request = new ReserveRequest(
+                VehicleCategory.SEDAN,
+                driverInfo,
+                LocalDate.of(2026, 6, 20),
+                LocalDate.of(2026, 6, 25),
+                0
+        );
 
-        when(bookingService.reserve(any()))
+        Reservation reservation = new Reservation(
+                VehicleCategory.SEDAN,
+                driverInfo,
+                LocalDate.of(2026, 6, 20),
+                LocalDate.of(2026, 6, 25),
+                0,
+                BigDecimal.valueOf(100)
+        );
+
+        when(bookingService.reserve(any(ReserveRequest.class)))
                 .thenReturn(reservation);
 
         mockMvc.perform(
                         post("/reservations")
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content(objectMapper.writeValueAsString(request)))
+                                .content(objectMapper.writeValueAsString(request))
+                )
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.reservationId")
-                        .value("RES-1"));
+                .andExpect(jsonPath("$.reservationId").isNotEmpty())
+                .andExpect(jsonPath("$.vehicleCategory").value("SEDAN"))
+                .andExpect(jsonPath("$.startDate").value("2026-06-20"))
+                .andExpect(jsonPath("$.endDate").value("2026-06-25"))
+                .andExpect(jsonPath("$.dailyMileage").value(0))
+                .andExpect(jsonPath("$.amount").value(100));
 
-        verify(bookingService).reserve(any());
+        verify(bookingService).reserve(any(ReserveRequest.class));
     }
 
-    //@Test
+    @Test
     void shouldModifyReservation() throws Exception {
-        DriverInfo driverInfo = new DriverInfo(LicenseType.REGULAR, LocalDate.now().minusYears(4));
-        ModifyReservationRequest request =
-                new ModifyReservationRequest(
-                        LocalDate.of(2026, 6, 22),
-                        LocalDate.of(2026, 6, 27));
+        DriverInfo driverInfo = new DriverInfo(
+                LicenseType.REGULAR,
+                LocalDate.now().minusYears(4)
+        );
 
-        Reservation modified =
-                new Reservation(
-                        VehicleCategory.SEDAN,
-                        driverInfo,
-                        LocalDate.of(2026, 6, 22),
-                        LocalDate.of(2026, 6, 27),
-                        0,
-                        BigDecimal.valueOf(100));
+        ModifyReservationRequest request = new ModifyReservationRequest(
+                LocalDate.of(2026, 6, 22),
+                LocalDate.of(2026, 6, 27)
+        );
 
-        when(bookingService.modify(
-                eq("RES-1"),
-                any()))
-                .thenReturn(modified);
+        Reservation modifiedReservation = new Reservation(
+                VehicleCategory.SEDAN,
+                driverInfo,
+                LocalDate.of(2026, 6, 22),
+                LocalDate.of(2026, 6, 27),
+                0,
+                BigDecimal.valueOf(100)
+        );
+
+        when(bookingService.modify(eq("RES-1"), any(ModifyReservationRequest.class)))
+                .thenReturn(modifiedReservation);
 
         mockMvc.perform(
                         put("/reservations/RES-1")
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .content(objectMapper.writeValueAsString(request)))
+                                .content(objectMapper.writeValueAsString(request))
+                )
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.reservationId")
-                        .value("RES-1"));
+                .andExpect(jsonPath("$.reservationId").isNotEmpty())
+                .andExpect(jsonPath("$.vehicleCategory").value("SEDAN"))
+                .andExpect(jsonPath("$.startDate").value("2026-06-22"))
+                .andExpect(jsonPath("$.endDate").value("2026-06-27"))
+                .andExpect(jsonPath("$.amount").value(100));
 
-        verify(bookingService)
-                .modify(eq("RES-1"), any());
+        verify(bookingService).modify(eq("RES-1"), any(ModifyReservationRequest.class));
     }
 
     @Test
     void shouldCancelReservation() throws Exception {
-
         doNothing()
                 .when(cancellationService)
                 .cancel("RES-1");
 
-        mockMvc.perform(
-                        delete("/reservations/RES-1"))
+        mockMvc.perform(delete("/reservations/RES-1"))
                 .andExpect(status().isOk());
 
-        verify(cancellationService)
-                .cancel("RES-1");
+        verify(cancellationService).cancel("RES-1");
     }
 }
