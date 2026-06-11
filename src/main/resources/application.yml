@@ -1,0 +1,27 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: car-rental
+
+logging:
+  level:
+    root: INFO
+    com.carrental: DEBUG
+
+pricing:
+  sedan:
+    short-day-rate: 20
+    long-day-rate: 15
+    long-day-threshold: 10
+
+  suv:
+    base-day-rate: 15
+    mileage-rate: 0.50
+
+  van:
+    base-day-rate: 22
+
+  pickup:
+    base-day-rate: 30
